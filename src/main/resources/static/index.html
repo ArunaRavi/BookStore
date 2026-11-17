@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111210">
+  <title>Book Worm | Find your next read</title>
+  <link rel="stylesheet" href="/styles.css">
+  <script src="/app.js" defer></script>
+</head>
+<body>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="Book Worm home">
+      <span class="brand-mark" aria-hidden="true">B</span>
+      <span>Book Worm</span>
+    </a>
+    <nav class="primary-nav" aria-label="Main navigation">
+      <button class="nav-link" data-view="orders">My Orders</button>
+      <button class="nav-link" data-view="wishlist">My Wishlist</button>
+      <button class="nav-link" data-view="writers">My Writers</button>
+    </nav>
+    <div class="top-actions">
+      <button class="icon-button cart-button" id="cart-button" aria-label="Open basket" title="Basket">
+        <svg viewBox="0 0 24 24" aria-hidden="true"><path d="M3 4h2l2.2 11.1a2 2 0 0 0 2 1.6h8.5a2 2 0 0 0 1.9-1.4L21 8H6"/><circle cx="10" cy="20" r="1"/><circle cx="18" cy="20" r="1"/></svg>
+        <span class="cart-count" id="cart-count">0</span>
+      </button>
+      <button class="account-button" id="account-button" aria-label="Sign in">
+        <span class="account-avatar" id="account-avatar">?</span>
+        <span class="account-label" id="account-label">Sign in</span>
+      </button>
+    </div>
+  </header>
+
+  <div class="app-layout">
+    <aside class="sidebar" aria-label="Book categories">
+      <p class="sidebar-heading">Browse</p>
+      <div class="category-list" id="category-list">
+        <button class="category-button is-active" data-category="all">All books</button>
+      </div>
+      <div class="sidebar-note">
+        <span class="note-rule"></span>
+        <p>Good stories<br>stay with you.</p>
+      </div>
+    </aside>
+
+    <main class="main-content">
+      <section class="catalog-toolbar" aria-label="Search and refine books">
+        <form class="search-box" id="search-form" role="search">
+          <label class="visually-hidden" for="search-input">Search books</label>
+          <input id="search-input" type="search" placeholder="Search books, ideas, authors..." autocomplete="off">
+          <button class="search-submit" type="submit" aria-label="Search">
+            <svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="10.8" cy="10.8" r="6.8"/><path d="m16 16 4.5 4.5"/></svg>
+          </button>
+        </form>
+        <label class="filter-control">
+          <span>Language</span>
+          <select id="language-filter" aria-label="Filter by language">
+            <option value="all">All languages</option>
+            <option value="English">English</option>
+          </select>
+        </label>
+        <label class="filter-control">
+          <span>Format</span>
+          <select id="format-filter" aria-label="Filter by format">
+            <option value="all">All formats</option>
+            <option value="Paperback">Paperback</option>
+            <option value="Hardcover">Hardcover</option>
+            <option value="eBook">eBook</option>
+          </select>
+        </label>
+        <label class="filter-control">
+          <span>Price range</span>
+          <select id="price-filter" aria-label="Filter by price range">
+            <option value="all">Any price</option>
+            <option value="0-199">Under INR 200</option>
+            <option value="200-399">INR 200 to 399</option>
+            <option value="400-99999">INR 400 and up</option>
+          </select>
+        </label>
+        <label class="filter-control sort-control">
+          <span>Sort by</span>
+          <select id="sort-filter" aria-label="Sort books">
+            <option value="relevance">Relevance</option>
+            <option value="newest">Newest</option>
+            <option value="price_asc">Price: low to high</option>
+            <option value="price_desc">Price: high to low</option>
+          </select>
+        </label>
+      </section>
+
+      <section class="welcome-row" id="welcome-row">
+        <div>
+          <p class="eyebrow">A little more you, on every page</p>
+          <h1>Find your next read.</h1>
+        </div>
+        <p class="welcome-copy">Thoughtful picks, new voices, and stories worth keeping.</p>
+      </section>
+
+      <div class="status-message" id="status-message" role="status" aria-live="polite"></div>
+      <div id="catalog-view">
+        <section class="shelf" id="recommended-shelf">
+          <div class="shelf-heading"><h2>Recommended for You</h2><span class="shelf-caption">Picked for curious minds</span></div>
+          <div class="book-grid" id="recommended-books"></div>
+        </section>
+        <section class="shelf" id="bestsellers-shelf">
+          <div class="shelf-heading"><h2>Bestsellers this Month</h2><span class="shelf-caption">Readers are talking</span></div>
+          <div class="book-grid" id="bestseller-books"></div>
+        </section>
+        <section class="shelf" id="launches-shelf">
+          <div class="shelf-heading"><h2>New Launches</h2><span class="shelf-caption">Fresh on the shelf</span></div>
+          <div class="book-grid" id="launch-books"></div>
+        </section>
+      </div>
+      <section class="results-view is-hidden" id="results-view">
+        <div class="shelf-heading"><h2 id="results-title">Books</h2><span class="shelf-caption" id="results-count"></span></div>
+        <div class="book-grid" id="results-books"></div>
+        <p class="empty-state is-hidden" id="empty-state">No books found. Try a different search or filter.</p>
+      </section>
+      <section class="writers-view is-hidden" id="writers-view">
+        <div class="shelf-heading"><h2>Writers to know</h2><span class="shelf-caption">Meet the minds behind the books</span></div>
+        <div class="writer-grid" id="writer-grid"></div>
+      </section>
+      <section class="orders-view is-hidden" id="orders-view">
+        <div class="shelf-heading"><h2>Your orders</h2><span class="shelf-caption">A history of good reads</span></div>
+        <div id="order-list"></div>
+      </section>
+      <footer class="page-footer"><span>BOOK WORM</span><span>Stories for every kind of day.</span></footer>
+    </main>
+  </div>
+
+  <div class="overlay is-hidden" id="product-overlay" role="presentation">
+    <section class="dialog product-dialog" role="dialog" aria-modal="true" aria-labelledby="product-title">
+      <button class="close-button" data-close="product-overlay" aria-label="Close product details">×</button>
+      <div id="product-detail-content"></div>
+    </section>
+  </div>
+
+  <div class="overlay is-hidden" id="login-overlay" role="presentation">
+    <section class="dialog login-dialog" role="dialog" aria-modal="true" aria-labelledby="login-title">
+      <button class="close-button" data-close="login-overlay" aria-label="Close sign in">×</button>
+      <p class="eyebrow">Welcome back</p>
+      <h2 id="login-title">Sign in to Book Worm</h2>
+      <p class="dialog-intro">Your basket and saved reads are waiting.</p>
+      <form id="login-form" class="login-form">
+        <label>Email address<input name="email" type="email" autocomplete="username" required placeholder="you@example.com"></label>
+        <label>Password<input name="password" type="password" autocomplete="current-password" required placeholder="Your password"></label>
+        <p class="form-error" id="login-error" role="alert"></p>
+        <button class="solid-button" type="submit">Sign in</button>
+      </form>
+      <p class="demo-hint">Demo: customer@example.com / Password123!</p>
+    </section>
+  </div>
+
+  <aside class="basket-drawer is-hidden" id="basket-drawer" aria-label="Your basket" aria-hidden="true">
+    <div class="drawer-header"><div><p class="eyebrow">Your picks</p><h2>Your basket</h2></div><button class="close-button" id="close-basket" aria-label="Close basket">×</button></div>
+    <div class="basket-items" id="basket-items"></div>
+    <div class="basket-summary" id="basket-summary"></div>
+    <p class="basket-footnote">Delivery details and payment are completed at checkout.</p>
+  </aside>
+  <div class="drawer-scrim is-hidden" id="drawer-scrim"></div>
+
+  <div class="toast" id="toast" role="status" aria-live="polite"></div>
+</body>
+</html>

@@ -1,0 +1,1343 @@
+openapi: 3.0.3
+info:
+  title: E-Commerce Bookstore Platform API
+  description: >-
+    RESTful OpenAPI 3.0 specification covering the end-to-end customer journey for an E-Commerce Book Store:
+    1. Authentication & Order History with "Buy In Again" and History-based Recommendations.
+    2. Catalog browsing by Category, Brand/Author, Product details with tentative delivery dates, and related products.
+    3. Basket/Cart management, Address selection, Gift Points redemption, Payment initiation & verification, Purchase confirmation, and 48-hour order cancellation.
+  version: 1.0.0
+servers:
+  - url: https://api.bookworm.example.com/v1
+    description: Production Server
+  - url: https://staging-api.bookworm.example.com/v1
+    description: Staging Server
+
+tags:
+  - name: Authentication
+    description: User authentication, registration, and session management (Step 1)
+  - name: Recommendations & History
+    description: Order history, "Buy In Again", and history-driven recommendations (Step 2)
+  - name: Categories & Brands
+    description: Catalog discovery by Category and Brand/Author (Steps 3, 5, 6)
+  - name: Products
+    description: Product catalog, delivery estimation, and related products (Step 7)
+  - name: Basket / Cart
+    description: Basket operations and item management (Step 8)
+  - name: Addresses
+    description: Customer delivery address management (Step 9)
+  - name: Loyalty & Gift Points
+    description: Gift points balance inquiry and redemption (Step 10)
+  - name: Payments
+    description: Payment initiation and transaction verification (Steps 10, 11)
+  - name: Orders
+    description: Order confirmation, tracking, and 48-hour cancellation policy (Steps 11, 12)
+
+paths:
+  # =========================================================================
+  # STEP 1: AUTHENTICATION
+  # =========================================================================
+  /auth/login:
+    post:
+      tags:
+        - Authentication
+      summary: User authentication (Login)
+      description: Authenticates user credentials and issues a JWT bearer token.
+      operationId: loginUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LoginRequest'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /auth/register:
+    post:
+      tags:
+        - Authentication
+      summary: Customer registration
+      operationId: registerUser
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/RegisterRequest'
+      responses:
+        '201':
+          description: Account created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AuthResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /auth/logout:
+    post:
+      tags:
+        - Authentication
+      summary: User logout
+      operationId: logoutUser
+      security:
+        - BearerAuth: []
+      responses:
+        '204':
+          description: Successfully logged out
+
+  # =========================================================================
+  # STEP 2: ORDER HISTORY, BUY IN AGAIN & RECOMMENDATIONS
+  # =========================================================================
+  /orders/history:
+    get:
+      tags:
+        - Recommendations & History
+      summary: Browse past order history
+      description: Returns user's past orders with line items to support the "Buy In Again" workflow.
+      operationId: getOrderHistory
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 10
+      responses:
+        '200':
+          description: Paginated list of previous orders
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderHistoryResponse'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /orders/{orderId}/buy-again:
+    post:
+      tags:
+        - Recommendations & History
+      summary: "Buy In Again: Re-add past order items to basket"
+      description: Adds all available items from a previous order into the current active shopping basket.
+      operationId: reorderPreviousItems
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "ord_884920"
+      responses:
+        '200':
+          description: Items re-added to basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /recommendations/history-based:
+    get:
+      tags:
+        - Recommendations & History
+      summary: Recommended items based on order history
+      description: Returns personalized product recommendations derived from the user's past purchase categories and authors.
+      operationId: getHistoryBasedRecommendations
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 6
+      responses:
+        '200':
+          description: List of personalized recommended products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductSummary'
+
+  # =========================================================================
+  # STEPS 3, 5 & 6: CATALOGUE, CATEGORIES & BRANDS / WRITERS
+  # =========================================================================
+  /categories:
+    get:
+      tags:
+        - Categories & Brands
+      summary: Access product catalogue categories
+      description: Lists all available product categories and genres.
+      operationId: getCategories
+      responses:
+        '200':
+          description: Category tree and listing
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Category'
+
+  /brands:
+    get:
+      tags:
+        - Categories & Brands
+      summary: Browse brands and writers
+      description: Lists registered brands, authors, and publishers.
+      operationId: getBrands
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Filter brand or writer name
+      responses:
+        '200':
+          description: List of brands/writers
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Brand'
+
+  /brands/{brandId}/products:
+    get:
+      tags:
+        - Categories & Brands
+      summary: Get products by brand or writer
+      operationId: getProductsByBrand
+      parameters:
+        - name: brandId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "brand_arjun_patel"
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+      responses:
+        '200':
+          description: Products published under this brand/writer
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+
+  # =========================================================================
+  # STEP 7: PRODUCTS, DELIVERY ESTIMATE & RELATED PRODUCTS
+  # =========================================================================
+  /products:
+    get:
+      tags:
+        - Products
+      summary: Search and browse products
+      operationId: getProducts
+      parameters:
+        - name: search
+          in: query
+          schema:
+            type: string
+          description: Search keywords
+        - name: categoryId
+          in: query
+          schema:
+            type: string
+          description: Filter by category ID
+        - name: brandId
+          in: query
+          schema:
+            type: string
+          description: Filter by brand or author ID
+        - name: minPrice
+          in: query
+          schema:
+            type: number
+        - name: maxPrice
+          in: query
+          schema:
+            type: number
+        - name: sortBy
+          in: query
+          schema:
+            type: string
+            enum: [relevance, price_asc, price_desc, rating, newest]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Filtered product catalogue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductListResponse'
+
+  /products/{productId}:
+    get:
+      tags:
+        - Products
+      summary: Get product details with tentative delivery date
+      description: Returns full product specification, current stock, and tentative delivery date calculated for user locale/pincode.
+      operationId: getProductById
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "prod_art_of_focus"
+        - name: postalCode
+          in: query
+          required: false
+          description: Postal code to calculate precise tentative delivery date
+          schema:
+            type: string
+            example: "560001"
+      responses:
+        '200':
+          description: Detailed product information with delivery timeline
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ProductDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /products/{productId}/related:
+    get:
+      tags:
+        - Products
+      summary: Get related products
+      description: Returns related products appearing for selection alongside the current item.
+      operationId: getRelatedProducts
+      parameters:
+        - name: productId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "prod_art_of_focus"
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 4
+      responses:
+        '200':
+          description: List of related products
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ProductSummary'
+
+  # =========================================================================
+  # STEP 8: BASKET / CART OPERATIONS
+  # =========================================================================
+  /basket:
+    get:
+      tags:
+        - Basket / Cart
+      summary: Get active basket
+      description: Retrieve user's current shopping basket, line items, and pricing totals.
+      operationId: getBasket
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Active basket contents
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '401':
+          $ref: '#/components/responses/UnauthorizedError'
+
+  /basket/items:
+    post:
+      tags:
+        - Basket / Cart
+      summary: Add product(s) to basket
+      operationId: addToBasket
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddBasketItemRequest'
+      responses:
+        '200':
+          description: Product added and basket updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /basket/items/{itemId}:
+    put:
+      tags:
+        - Basket / Cart
+      summary: Update basket item quantity
+      operationId: updateBasketItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - quantity
+              properties:
+                quantity:
+                  type: integer
+                  minimum: 1
+                  example: 2
+      responses:
+        '200':
+          description: Item quantity updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+    delete:
+      tags:
+        - Basket / Cart
+      summary: Remove item from basket
+      operationId: removeBasketItem
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: itemId
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Item removed from basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+
+  # =========================================================================
+  # STEP 9: DELIVERY ADDRESS MANAGEMENT
+  # =========================================================================
+  /addresses:
+    get:
+      tags:
+        - Addresses
+      summary: List user saved addresses
+      operationId: getUserAddresses
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of saved addresses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Address'
+    post:
+      tags:
+        - Addresses
+      summary: Add a new delivery address
+      operationId: createAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AddressInput'
+      responses:
+        '201':
+          description: Address created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Address'
+
+  /basket/delivery-address:
+    put:
+      tags:
+        - Addresses
+      summary: Select address for order delivery
+      description: Assigns a delivery address to the current basket for checkout calculation.
+      operationId: setDeliveryAddress
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - addressId
+              properties:
+                addressId:
+                  type: string
+                  example: "addr_home_901"
+      responses:
+        '200':
+          description: Delivery address assigned to basket
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+
+  # =========================================================================
+  # STEP 10: GIFT POINTS & LOYALTY REDEMPTION
+  # =========================================================================
+  /loyalty/gift-points:
+    get:
+      tags:
+        - Loyalty & Gift Points
+      summary: Check available gift points balance
+      operationId: getGiftPointsBalance
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Gift points balance and currency conversion rate
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GiftPointsSummary'
+
+  /basket/redeem-points:
+    post:
+      tags:
+        - Loyalty & Gift Points
+      summary: Redeem gift points for discount
+      description: Applies available gift points to reduce the basket total.
+      operationId: redeemGiftPoints
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - pointsToRedeem
+              properties:
+                pointsToRedeem:
+                  type: integer
+                  minimum: 1
+                  example: 100
+      responses:
+        '200':
+          description: Gift points applied successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Basket'
+        '400':
+          description: Exceeds point balance or maximum allowed redemption discount
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # STEPS 10 & 11: PAYMENT INITIATION & VERIFICATION
+  # =========================================================================
+  /payments/initiate:
+    post:
+      tags:
+        - Payments
+      summary: Initiate payment with selected option
+      description: Initializes a payment transaction for the basket using Card, UPI, Net Banking, or COD.
+      operationId: initiatePayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/InitiatePaymentRequest'
+      responses:
+        '200':
+          description: Payment session created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentInitiateResponse'
+        '400':
+          $ref: '#/components/responses/BadRequestError'
+
+  /payments/verify:
+    post:
+      tags:
+        - Payments
+      summary: Payment confirmation and transaction verification
+      description: Verifies payment gateway signatures and confirms receipt of funds.
+      operationId: verifyPayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VerifyPaymentRequest'
+      responses:
+        '200':
+          description: Payment confirmed and order placed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaymentVerificationResponse'
+        '400':
+          description: Payment verification failed
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  # =========================================================================
+  # STEPS 11 & 12: PURCHASE CONFIRMATION & 48-HR CANCELLATION
+  # =========================================================================
+  /orders:
+    post:
+      tags:
+        - Orders
+      summary: Create order upon confirmation
+      description: Finalizes order creation from confirmed payment and active basket.
+      operationId: createOrder
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateOrderFromBasketRequest'
+      responses:
+        '201':
+          description: Purchase confirmed and order generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+
+  /orders/{orderId}:
+    get:
+      tags:
+        - Orders
+      summary: Get order details and confirmation status
+      operationId: getOrderById
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "ord_884920"
+      responses:
+        '200':
+          description: Order details with delivery date and 48hr cancellation eligibility
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/OrderDetail'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+  /orders/{orderId}/cancel:
+    post:
+      tags:
+        - Orders
+      summary: Cancel order within 48 hours
+      description: >-
+        Cancels an order if the request is placed within 48 hours of purchase (`orderTimestamp + 48h >= now`).
+        Triggers refund processing and restores redeemed gift points.
+      operationId: cancelOrder
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: orderId
+          in: path
+          required: true
+          schema:
+            type: string
+            example: "ord_884920"
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CancelOrderRequest'
+      responses:
+        '200':
+          description: Order cancelled successfully within the 48hr cancellation window
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CancelOrderResponse'
+        '400':
+          description: Cancellation window expired (> 48 hours) or order already processed/cancelled
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '404':
+          $ref: '#/components/responses/NotFoundError'
+
+# =========================================================================
+# COMPONENTS: SCHEMAS & RESPONSES
+# =========================================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    # --- Auth Models ---
+    LoginRequest:
+      type: object
+      required:
+        - email
+        - password
+      properties:
+        email:
+          type: string
+          format: email
+          example: "customer@example.com"
+        password:
+          type: string
+          format: password
+          example: "Password123!"
+
+    RegisterRequest:
+      type: object
+      required:
+        - name
+        - email
+        - password
+      properties:
+        name:
+          type: string
+          example: "Jane Doe"
+        email:
+          type: string
+          format: email
+          example: "jane.doe@example.com"
+        password:
+          type: string
+          format: password
+          example: "SecureP@ssw0rd!"
+        phone:
+          type: string
+          example: "+919876543210"
+
+    AuthResponse:
+      type: object
+      properties:
+        accessToken:
+          type: string
+          example: "eyJhbGciOiJIUzI1NiIsInR5cCI6..."
+        tokenType:
+          type: string
+          example: "Bearer"
+        expiresIn:
+          type: integer
+          example: 86400
+        user:
+          $ref: '#/components/schemas/UserProfile'
+
+    UserProfile:
+      type: object
+      properties:
+        userId:
+          type: string
+          example: "usr_10293"
+        name:
+          type: string
+          example: "Jane Doe"
+        email:
+          type: string
+          example: "jane.doe@example.com"
+        phone:
+          type: string
+          example: "+919876543210"
+
+    # --- Catalog & Product Models ---
+    Category:
+      type: object
+      required:
+        - categoryId
+        - name
+        - slug
+      properties:
+        categoryId:
+          type: string
+          example: "cat_self_help"
+        name:
+          type: string
+          example: "Self-help"
+        slug:
+          type: string
+          example: "self-help"
+        description:
+          type: string
+          example: "Personal growth and productivity books"
+        productCount:
+          type: integer
+          example: 145
+
+    Brand:
+      type: object
+      required:
+        - brandId
+        - name
+      properties:
+        brandId:
+          type: string
+          example: "brand_arjun_patel"
+        name:
+          type: string
+          example: "Arjun Patel"
+        type:
+          type: string
+          enum: [Author, Publisher, Brand]
+          example: "Author"
+        description:
+          type: string
+          example: "Author of bestselling focus & productivity guides."
+        avatarUrl:
+          type: string
+          format: uri
+
+    ProductSummary:
+      type: object
+      required:
+        - productId
+        - title
+        - brand
+        - category
+        - price
+        - tentativeDeliveryDate
+        - coverImageUrl
+      properties:
+        productId:
+          type: string
+          example: "prod_art_of_focus"
+        title:
+          type: string
+          example: "The Art of Focus"
+        brand:
+          $ref: '#/components/schemas/Brand'
+        category:
+          type: string
+          example: "Self-help"
+        synopsis:
+          type: string
+          example: "Practical guide to mastering focus & boosting productivity every day."
+        format:
+          type: string
+          enum: [Paperback, Hardcover, eBook, Audiobook]
+          example: "Paperback"
+        price:
+          type: number
+          format: float
+          example: 399.00
+        currency:
+          type: string
+          example: "INR"
+        currencySymbol:
+          type: string
+          example: "₹"
+        tentativeDeliveryDate:
+          type: string
+          example: "Mon, 21 Jul"
+        coverImageUrl:
+          type: string
+          format: uri
+          example: "https://images.bookworm.example.com/covers/art-of-focus.jpg"
+
+    ProductDetail:
+      allOf:
+        - $ref: '#/components/schemas/ProductSummary'
+        - type: object
+          properties:
+            isbn:
+              type: string
+              example: "978-0143127741"
+            publisher:
+              type: string
+              example: "Penguin Random House"
+            pageCount:
+              type: integer
+              example: 280
+            language:
+              type: string
+              example: "English"
+            inStock:
+              type: boolean
+              example: true
+            stockQuantity:
+              type: integer
+              example: 45
+            tentativeDeliveryDays:
+              type: integer
+              example: 3
+            fullDescription:
+              type: string
+              example: "Declutter your life to uncover peace, clarity, and deep focus..."
+
+    ProductListResponse:
+      type: object
+      properties:
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/ProductSummary'
+        total:
+          type: integer
+          example: 120
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 20
+        totalPages:
+          type: integer
+          example: 6
+
+    # --- Basket / Cart Models ---
+    AddBasketItemRequest:
+      type: object
+      required:
+        - productId
+        - quantity
+      properties:
+        productId:
+          type: string
+          example: "prod_art_of_focus"
+        quantity:
+          type: integer
+          minimum: 1
+          default: 1
+          example: 1
+
+    BasketItem:
+      type: object
+      required:
+        - itemId
+        - product
+        - quantity
+        - unitPrice
+        - lineTotal
+      properties:
+        itemId:
+          type: string
+          example: "item_901"
+        product:
+          $ref: '#/components/schemas/ProductSummary'
+        quantity:
+          type: integer
+          example: 1
+        unitPrice:
+          type: number
+          example: 399.00
+        lineTotal:
+          type: number
+          example: 399.00
+
+    Basket:
+      type: object
+      required:
+        - basketId
+        - items
+        - subtotal
+        - totalAmount
+      properties:
+        basketId:
+          type: string
+          example: "bsk_091823"
+        totalItemCount:
+          type: integer
+          example: 2
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/BasketItem'
+        subtotal:
+          type: number
+          example: 658.00
+        discountAmount:
+          type: number
+          example: 50.00
+        giftPointsRedeemed:
+          type: integer
+          example: 50
+        deliveryFee:
+          type: number
+          example: 0.00
+        totalAmount:
+          type: number
+          example: 608.00
+        currency:
+          type: string
+          example: "INR"
+        currencySymbol:
+          type: string
+          example: "₹"
+        selectedDeliveryAddress:
+          $ref: '#/components/schemas/Address'
+
+    # --- Address Models ---
+    AddressInput:
+      type: object
+      required:
+        - recipientName
+        - phone
+        - street
+        - city
+        - state
+        - postalCode
+        - country
+      properties:
+        recipientName:
+          type: string
+          example: "Jane Doe"
+        phone:
+          type: string
+          example: "+919876543210"
+        street:
+          type: string
+          example: "123 Indiranagar 100ft Road"
+        city:
+          type: string
+          example: "Bengaluru"
+        state:
+          type: string
+          example: "Karnataka"
+        postalCode:
+          type: string
+          example: "560038"
+        country:
+          type: string
+          example: "India"
+        isDefault:
+          type: boolean
+          example: true
+
+    Address:
+      allOf:
+        - $ref: '#/components/schemas/AddressInput'
+        - type: object
+          required:
+            - addressId
+          properties:
+            addressId:
+              type: string
+              example: "addr_home_901"
+
+    # --- Gift Points / Loyalty Models ---
+    GiftPointsSummary:
+      type: object
+      properties:
+        availablePoints:
+          type: integer
+          example: 450
+        redemptionValueInINR:
+          type: number
+          example: 450.00
+        conversionRate:
+          type: string
+          example: "1 Point = ₹1.00"
+        maxRedeemableForBasket:
+          type: integer
+          example: 100
+
+    # --- Payment Models ---
+    InitiatePaymentRequest:
+      type: object
+      required:
+        - paymentMethod
+      properties:
+        paymentMethod:
+          type: string
+          enum: [card, upi, net_banking, cod]
+          example: "upi"
+        returnUrl:
+          type: string
+          format: uri
+          example: "https://bookworm.example.com/checkout/confirmation"
+
+    PaymentInitiateResponse:
+      type: object
+      properties:
+        paymentTransactionId:
+          type: string
+          example: "tx_pay_9091823"
+        orderAmount:
+          type: number
+          example: 608.00
+        currency:
+          type: string
+          example: "INR"
+        paymentMethod:
+          type: string
+          example: "upi"
+        paymentGatewayPayload:
+          type: object
+          description: Gateway-specific session or intent tokens (Razorpay/Stripe order ID, UPI Intent URL)
+          example:
+            gatewayOrderId: "order_DBJOWsd8923"
+            upiIntentUrl: "upi://pay?pa=bookworm@bank&pn=BookWorm&am=608.00"
+
+    VerifyPaymentRequest:
+      type: object
+      required:
+        - paymentTransactionId
+      properties:
+        paymentTransactionId:
+          type: string
+          example: "tx_pay_9091823"
+        gatewayPaymentId:
+          type: string
+          example: "pay_xyz98124"
+        gatewaySignature:
+          type: string
+          example: "9a01f82bc319f..."
+
+    PaymentVerificationResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [SUCCESS, FAILED, PENDING]
+          example: "SUCCESS"
+        paymentTransactionId:
+          type: string
+          example: "tx_pay_9091823"
+        orderId:
+          type: string
+          example: "ord_884920"
+        message:
+          type: string
+          example: "Payment verified successfully"
+
+    # --- Order & Cancellation Models ---
+    CreateOrderFromBasketRequest:
+      type: object
+      required:
+        - paymentTransactionId
+      properties:
+        paymentTransactionId:
+          type: string
+          example: "tx_pay_9091823"
+
+    OrderItem:
+      type: object
+      properties:
+        productId:
+          type: string
+          example: "prod_art_of_focus"
+        title:
+          type: string
+          example: "The Art of Focus"
+        brandName:
+          type: string
+          example: "Arjun Patel"
+        quantity:
+          type: integer
+          example: 1
+        unitPrice:
+          type: number
+          example: 399.00
+        lineTotal:
+          type: number
+          example: 399.00
+        coverImageUrl:
+          type: string
+          format: uri
+          example: "https://images.bookworm.example.com/covers/art-of-focus.jpg"
+
+    OrderDetail:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: "ord_884920"
+        orderTimestamp:
+          type: string
+          format: date-time
+          example: "2025-07-15T10:30:00Z"
+        status:
+          type: string
+          enum: [PLACED, CONFIRMED, SHIPPED, DELIVERED, CANCELLED]
+          example: "CONFIRMED"
+        items:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderItem'
+        deliveryAddress:
+          $ref: '#/components/schemas/Address'
+        subtotal:
+          type: number
+          example: 658.00
+        discountAmount:
+          type: number
+          example: 50.00
+        giftPointsRedeemed:
+          type: integer
+          example: 50
+        totalPaid:
+          type: number
+          example: 608.00
+        paymentMethod:
+          type: string
+          example: "upi"
+        tentativeDeliveryDate:
+          type: string
+          example: "Mon, 21 Jul 2025"
+        cancellationDeadline:
+          type: string
+          format: date-time
+          description: Exact timestamp until which 48-hr order cancellation is permitted
+          example: "2025-07-17T10:30:00Z"
+        isCancellable:
+          type: boolean
+          description: Whether the order is currently eligible for 48hr cancellation
+          example: true
+
+    OrderHistoryResponse:
+      type: object
+      properties:
+        orders:
+          type: array
+          items:
+            $ref: '#/components/schemas/OrderDetail'
+        total:
+          type: integer
+          example: 8
+        page:
+          type: integer
+          example: 1
+        limit:
+          type: integer
+          example: 10
+
+    CancelOrderRequest:
+      type: object
+      properties:
+        reason:
+          type: string
+          example: "Ordered by mistake"
+
+    CancelOrderResponse:
+      type: object
+      properties:
+        orderId:
+          type: string
+          example: "ord_884920"
+        status:
+          type: string
+          example: "CANCELLED"
+        cancellationTimestamp:
+          type: string
+          format: date-time
+        refundAmount:
+          type: number
+          example: 608.00
+        pointsRestored:
+          type: integer
+          example: 50
+        message:
+          type: string
+          example: "Order successfully cancelled within 48-hour policy. Refund and points restored."
+
+    # --- Error Model ---
+    ErrorResponse:
+      type: object
+      required:
+        - code
+        - message
+      properties:
+        code:
+          type: string
+          example: "CANCELLATION_WINDOW_EXPIRED"
+        message:
+          type: string
+          example: "Orders cannot be cancelled after 48 hours of purchase."
+
+  # --- Standard Responses ---
+  responses:
+    BadRequestError:
+      description: Bad request or validation failure
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    UnauthorizedError:
+      description: Authentication required or invalid/expired token
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
+    NotFoundError:
+      description: The requested resource does not exist
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/ErrorResponse'
